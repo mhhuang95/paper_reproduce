@@ -261,4 +261,133 @@ class Train(object):
         :return:
         '''
         batch_size = predictions.get_shape().as_list()[0]
-        
+        in_top1 = tf.to_float(tf.nn.in_top_k(predictions, labels, k = 1))
+        num_correct = tf.reduce_sum(in_top1)
+
+        return (batch_size - num_correct) / float(batch_size)
+
+
+    def generate_vali_batch(self, vali_data, vali_label, vali_batch_size):
+        '''
+        genetate a random batch of validation data to validate instead of using the
+        whole validation data
+        :param vali_data: 4D np array
+        :param vali_label: 1D np array
+        :param vali_batch_size: int
+        :return: 4D np array and 1D np array
+        '''
+        offset = np.random.choise(10000 - vali_batch_size, 1)[0]
+        vali_data_batch = vali_data[offset:offset + vali_batch_size, ...]
+        vali_label_batch = vali_label[offset:offset + vali_batch_size]
+        return vali_data_batch, vali_label_batch
+
+
+    def generate_augment_train_batch(self, train_data, train_labels, train_batch_size):
+        '''
+        This function helps generate a batch of train data, and random crop, horizontally flip
+        and whiten them at the same time
+        :param train_data: 4D np array
+        :param train_labels: 1D np array
+        :param train_batch_size: int
+        :return: 4D np array and 1D np array
+        '''
+        offset = np.random.choise(10000 - train_batch_size, 1)[0]
+        batch_data = train_data[offset:offset + train_batch_size, ...]
+        batch_data = random_crop_and_flip(batch_data, padding_size=FLAGS.padding_size)
+        batch_data = whitening_image(batch_data)
+
+        batch_label = train_labels[offset:offset + train_batch_size]
+
+        return batch_data, batch_label
+
+    def train_operation(self, global_step, total_loss, top1_error):
+        '''
+        trainning operations
+        :param global_step: tensor variable with shape [1]
+        :param total_loss: tensor with shape [1]
+        :param top1_error: tensor with shape [1]
+        :return: two operations. Running train_op will do optimization once. Running train_ema_op
+        will generate the moving average of train error and train loss for tensorboard
+        '''
+        tf.summary.scalar('learning_rate', self.lr_placeholder)
+        tf.summary.scalar('train_loss', total_loss)
+        tf.summary.scalar('train_top1_error', top1_error)
+
+        ema = tf.train.ExponentialMovingAverage(FLAGS.train_ema_decay, global_step)
+        train_ema_op = ema.apply([total_loss, top1_error])
+        tf.summary.scalar('train_top1_error_avg', ema.average(top1_error))
+        tf.summary.scalar('train_loss_avg', ema.average(total_loss))
+
+        opt = tf.train.MomentumOptimizer(learning_rate = self.lr_placeholder, momentum = 0.9)
+        train_op = opt.minimize(total_loss, global_step=global_step)
+
+        return train_op, train_ema_op
+
+
+    def validation_op(self, validation_step, top1_error, loss):
+        '''
+        Defines validation operations
+        :param validation_step: tensor with shape [1]
+        :param top1_error: tensor with shape [1]
+        :param loss: tensor with shape [1]
+        :return:
+        '''
+        ema = tf.train.ExponentialMovingAverage(0.0, validation_step)
+        ema2 = tf.train.ExponentialMovingAverage(0.95, validation_step)
+
+        val_op = tf.group(validation_step.assign_add(1), ema.apply([top1_error, loss]),
+                          ema2.apply([top1_error, loss]))
+
+        top1_error_val = ema.average(top1_error)
+        top1_error_avg = ema2.average(top1_error)
+        loss_val = ema.average(loss)
+        loss_val_avg = ema2.average(loss)
+
+        # Summarize these values on tensorboard
+        tf.summary.scalar('val_top1_error', top1_error_val)
+        tf.summary.scalar('val_top1_error_avg', top1_error_avg)
+        tf.summary.scalar('val_loss', loss_val)
+        tf.summary.scalar('val_loss_avg', loss_val_avg)
+        return val_op
+
+
+    def full_validation(self, loss, top1_error, session, vali_data, vali_labels, batch_data, batch_label):
+        '''
+        Runs validation on all the 10000 valdiation images
+        :param loss: tensor with shape [1]
+        :param top1_error: tensor with shape [1]
+        :param session:the current tensorflow session
+        :param vali_data: 4D np array
+        :param vali_labels: 1D np array
+        :param batch_data: 4D numpy array. training batch to feed dict and fetch the weights
+        :param batch_label: 1D numpy array. training labels to feed the dict
+        :return:
+        '''
+
+        num_batches = 10000 // FLAGS.validation_batch_size
+        order = np.random.choise(10000, num_batches * FLAGS.validation_batch_size)
+        vali_data_subset = vali_data[order, ...]
+        vali_labels_subset = vali_labels[order]
+
+        loss_list = []
+        error_list = []
+
+        for step in range(num_batches):
+            offset = step * FLAGS.validation_batch_size
+            feed_dict = {self.image_placeholder: batch_data, self.label_placeholder: batch_label,
+                         self.vali_image_placeholder: vali_data_subset[offset:offset + FLAGS.validation_batch_size,
+                                                      ...],
+                         self.vali_label_placeholder: vali_labels_subset[offset:offset + FLAGS.validation_batch_size],
+                         self.lr_placeholder: FLAGS.init_lr}
+            loss_value, top1_error_value = sess.run([loss, top1_error], feed_dict=feed_dict)
+            loss_list.append(loss_value)
+            error_list.append(top1_error_value)
+
+        return np.mean(loss_list), np.mean(error_list)
+
+
+maybe_download_and_extract()
+
+train = Train()
+train.train()
+train.train()
