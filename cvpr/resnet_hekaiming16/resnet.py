@@ -29,7 +29,7 @@ def create_variables(name, shape, initializer=tf.contrib.layers.xavier_initializ
     :return: the created variable
     '''
 
-    regularizer = tf.contrib.layers.l2_regularizer(scale=FLAG.weight_decay)
+    regularizer = tf.contrib.layers.l2_regularizer(scale=FLAGS.weight_decay)
     new_variable = tf.get_variable(name, shape=shape, initializer=initializer, regularizer=regularizer)
 
     return new_variable
@@ -41,7 +41,7 @@ def output_layer(input_layer, num_labels):
     :param num_labels: int number of total labels
     :return: output Y = WX + B
     '''
-    input_dim = input_layer.get_shape().as_list[-1]
+    input_dim = input_layer.get_shape().as_list()[-1]
     fc_w = create_variables(name='fc_weights', shape=[input_dim, num_labels], is_fc_layer=True,
                             initializer=tf.uniform_unit_scaling_initializer(factor=1.0))
     fc_b = create_variables(name='fc_bias', shape=[num_labels], initializer=tf.zeros_initializer())
@@ -51,16 +51,16 @@ def output_layer(input_layer, num_labels):
     return fc_h
 
 
-def batch_nomalization_layer(input_layer, dimensions):
+def batch_nomalization_layer(input_layer, dimension):
     '''
 
     :param input_layer: 4D tensor
-    :param dimensions: The depth of the 4D tensor
+    :param dimension: The depth of the 4D tensor
     :return: the nomalized 4D tensor
     '''
     mean, variance = tf.nn.moments(input_layer, axes=[0,1,2])
-    beta = tf.get_variable(name='bata', dimensions, tf.float32, initializer=tf.constant_initializer(0.0, tf.float32))
-    gamma = tf.get_variable(name='gamma', dimensions, tf.float32, initializer=tf.constant_initializer(1.0, tf.float32))
+    beta = tf.get_variable('bata', dimension, tf.float32, initializer=tf.constant_initializer(0.0, tf.float32))
+    gamma = tf.get_variable('gamma', dimension, tf.float32, initializer=tf.constant_initializer(1.0, tf.float32))
 
     bn_layer = tf.nn.batch_normalization(input_layer, mean, variance, beta, gamma, BN_EPSILON)
 
@@ -78,7 +78,7 @@ def conv_bn_relu_layer(input_layer, filter_shape, stride):
     out_channel = filter_shape[-1]
     filter = create_variables(name='conv', shape=filter_shape)
 
-    conv = tf.nn.conv_2d(input_layer, filter, strides=[1,stride, stride, 1], padding='SAME')
+    conv = tf.nn.conv2d(input_layer, filter, strides=[1,stride, stride, 1], padding='SAME')
     bn_layer = batch_nomalization_layer(conv, out_channel)
 
     output = tf.nn.relu(bn_layer)
@@ -99,7 +99,7 @@ def bn_relu_conv_layer(input_layer, filter_shape, stride):
     relu_layer = tf.nn.relu(bn_layer)
 
     filter = create_variables(name='conv', shape=filter_shape)
-    conv = tf.nn.conv_2d(relu_layer, filter, strides=[1,stride, stride, 1], padding='SAME')
+    conv = tf.nn.conv2d(relu_layer, filter, strides=[1,stride, stride, 1], padding='SAME')
 
     return conv
 
@@ -127,7 +127,7 @@ def residual_block(input_layer, output_channel, first_block=False):
     with tf.variable_scope('conv1_in_block'):
         if first_block:
             filter = create_variables(name='conv', shape=[3,3,input_channel,output_channel])
-            conv1 = tf.nn.conv_2d(input_layer, filter=filter, strides=[1,1,1,1], padding='SAME')
+            conv1 = tf.nn.conv2d(input_layer, filter=filter, strides=[1,1,1,1], padding='SAME')
         else:
             conv1 = bn_relu_conv_layer(input_layer, [3,3,input_channel, output_channel], stride)
 
