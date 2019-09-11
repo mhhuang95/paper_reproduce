@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import pickle
 import os
-import cv2
+# import cv2
 
 
 data_dir = 'cifar10_data'
@@ -61,7 +61,7 @@ def _read_one_batch(path, is_random_label):
     :return: image numpy arrays and label numpy arrays
     '''
     fo = open(path, 'rb')
-    dicts = pickle.load(fo)
+    dicts = pickle.load(fo, encoding='latin1')
     fo.close()
 
     data = dicts['data']
@@ -118,9 +118,9 @@ def horizontal_flip(image, axis):
     :return: flipped image
     '''
 
-    flip_prob = np.random.randint(low=0,high=2)
-    if flip_prob == 0:
-        image = cv2.flip(image, axis)
+    # flip_prob = np.random.randint(low=0,high=2)
+    # if flip_prob == 0:
+    #     image = cv2.flip(image, axis)
 
     return image
 
@@ -183,7 +183,7 @@ def read_validation_data():
     Read in validation data. Whitening at the same time
     :return:
     '''
-    validation_array, validation_labels = read_in_all_images([vali_dir],
+    validation_array, validation_labels = read_all_images([vali_dir],
                                                              is_random_label=VALI_RANDOM_LABEL)
     validation_array = whitening_image(validation_array)
 
