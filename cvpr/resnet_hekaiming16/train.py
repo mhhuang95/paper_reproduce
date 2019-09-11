@@ -247,7 +247,7 @@ class Train(object):
         '''
         labels = tf.cast(labels, tf.int64)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-                                                                       labels=labels, names='cross_entropy_per_example')
+                                                                       labels=labels, name='cross_entropy_per_example')
         cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
         return cross_entropy_mean
 
@@ -276,7 +276,7 @@ class Train(object):
         :param vali_batch_size: int
         :return: 4D np array and 1D np array
         '''
-        offset = np.random.choise(10000 - vali_batch_size, 1)[0]
+        offset = np.random.choice(10000 - vali_batch_size, 1)[0]
         vali_data_batch = vali_data[offset:offset + vali_batch_size, ...]
         vali_label_batch = vali_label[offset:offset + vali_batch_size]
         return vali_data_batch, vali_label_batch
@@ -291,7 +291,7 @@ class Train(object):
         :param train_batch_size: int
         :return: 4D np array and 1D np array
         '''
-        offset = np.random.choise(10000 - train_batch_size, 1)[0]
+        offset = np.random.choice(10000 - train_batch_size, 1)[0]
         batch_data = train_data[offset:offset + train_batch_size, ...]
         batch_data = random_crop_and_flip(batch_data, padding_size=FLAGS.padding_size)
         batch_data = whitening_image(batch_data)
